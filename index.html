@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Book Store API</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f2f4f8;
+      padding: 40px;
+      color: #333;
+    }
+    h1, h2 {
+      text-align: center;
+      color: #2c3e50;
+    }
+    form {
+      max-width: 400px;
+      margin: 20px auto;
+      padding: 20px;
+      background: white;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      border-radius: 8px;
+    }
+    input, button {
+      width: 100%;
+      padding: 10px;
+      margin: 8px 0;
+      font-size: 16px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #2ecc71;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #27ae60;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+      max-width: 600px;
+      margin: 20px auto;
+    }
+    li {
+      background: white;
+      margin: 10px 0;
+      padding: 15px;
+      border-left: 6px solid #3498db;
+      border-radius: 5px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+    }
+    .delete-btn, .edit-btn {
+      padding: 6px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      border: none;
+      color: white;
+    }
+    .delete-btn { background-color: #e74c3c; }
+    .edit-btn { background-color: #3498db; }
+    .delete-btn:hover { background-color: #c0392b; }
+    .edit-btn:hover { background-color: #2980b9; }
+
+    #searchResult {
+      max-width: 400px;
+      margin: 10px auto;
+      background: #fff;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.1);
+      text-align: left;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>📚 Book Store</h1>
+
+  <form id="bookForm">
+    <input type="number" id="bookId" placeholder="Book ID (optional for Add)" />
+    <input type="text" id="title" placeholder="Title" required>
+    <input type="text" id="author" placeholder="Author" required>
+    <input type="number" id="price" placeholder="Price" required>
+    <button type="submit" id="submitBtn">➕ Add Book</button>
+  </form>
+
+  <h2>🔍 Search Book by ID</h2>
+  <form id="searchForm">
+    <input type="number" id="searchId" placeholder="Enter Book ID" required>
+    <button type="submit">Search</button>
+  </form>
+  <div id="searchResult"></div>
+
+  <h2>📖 List of Available Books</h2>
+  <ul id="bookList"></ul>
+
+  <script>
+    const bookList = document.getElementById("bookList");
+    const form = document.getElementById("bookForm");
+    const bookIdInput = document.getElementById("bookId");
+    const titleInput = document.getElementById("title");
+    const authorInput = document.getElementById("author");
+    const priceInput = document.getElementById("price");
+    const submitBtn = document.getElementById("submitBtn");
+
+    const searchForm = document.getElementById("searchForm");
+    const searchId = document.getElementById("searchId");
+    const searchResult = document.getElementById("searchResult");
+
+    function loadBooks() {
+      fetch("/books")
+        .then(res => res.json())
+        .then(data => {
+          bookList.innerHTML = "";
+          data.forEach(book => {
+            const li = document.createElement("li");
+            li.innerHTML = `
+              <div>
+                <strong>ID ${book.id}:</strong> ${book.title} by ${book.author} — ₹${book.price}
+              </div>
+              <div class="actions">
+                <button class="edit-btn" onclick="editBook(${book.id})">✏️ Edit</button>
+                <button class="delete-btn" onclick="deleteBook(${book.id})">🗑️ Delete</button>
+              </div>
+            `;
+            bookList.appendChild(li);
+          });
+        });
+    }
+
+    form.onsubmit = function (e) {
+      e.preventDefault();
+      const id = bookIdInput.value.trim();
+      const bookData = {
+        title: titleInput.value,
+        author: authorInput.value,
+        price: parseFloat(priceInput.value)
+      };
+
+      if (id && submitBtn.textContent.includes("Update")) {
+        // Update
+        fetch(`/books/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(bookData)
+        }).then(() => {
+          form.reset();
+          submitBtn.textContent = "➕ Add Book";
+          loadBooks();
+        });
+      } else {
+        // Add
+        if (id) {
+          bookData.id = parseInt(id);
+        }
+
+        fetch("/books", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(bookData)
+        }).then(res => {
+          if (!res.ok) {
+            alert("Failed to add book. ID might already exist.");
+          }
+          form.reset();
+          submitBtn.textContent = "➕ Add Book";
+          loadBooks();
+        });
+      }
+    };
+
+    function editBook(id) {
+      fetch(`/books/${id}`)
+        .then(res => res.json())
+        .then(book => {
+          bookIdInput.value = book.id;
+          titleInput.value = book.title;
+          authorInput.value = book.author;
+          priceInput.value = book.price;
+          submitBtn.textContent = "✅ Update Book";
+        });
+    }
+
+    function deleteBook(id) {
+      fetch(`/books/${id}`, { method: "DELETE" })
+        .then(() => loadBooks());
+    }
+
+    searchForm.onsubmit = function(e) {
+      e.preventDefault();
+      const id = searchId.value;
+      fetch(`/books/${id}`)
+        .then(res => {
+          if (!res.ok) throw new Error("Book not found");
+          return res.json();
+        })
+        .then(book => {
+          searchResult.innerHTML = `
+            <p><strong>ID:</strong> ${book.id}</p>
+            <p><strong>Title:</strong> ${book.title}</p>
+            <p><strong>Author:</strong> ${book.author}</p>
+            <p><strong>Price:</strong> ₹${book.price}</p>
+          `;
+        })
+        .catch(err => {
+          searchResult.innerHTML = `<p style="color:red;">${err.message}</p>`;
+        });
+    };
+
+    loadBooks();
+  </script>
+
+</body>
+</html>
